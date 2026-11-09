@@ -675,9 +675,9 @@ SCHEMA = {
 
 class DB:
     def __init__(self, url: str, token: str):
-        if not url.startswith(("libsql://", "wss://")):
+        if not url.startswith(("libsql://", "wss://", "ws://", "http://")):
             raise ValueError(
-                "TURSO_URL must use libsql:// or wss:// for transaction support; local files are forbidden"
+                "TURSO_URL must use libsql://, wss://, ws://, or http:// for transaction support; local files are forbidden"
             )
         self.client = libsql_client.create_client(url=url, auth_token=token)
 
