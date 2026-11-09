@@ -6845,8 +6845,32 @@ async def run() -> None:
     owner = int(os.environ["OWNER_ID"])
     if owner <= 0:
         raise SystemExit("OWNER_ID must be a positive Telegram user id")
+    import ssl, certifi, aiohttp
+    _sslctx = ssl.create_default_context(cafile=certifi.where())
+    from aiogram.client.session.aiohttp import AiohttpSession
+
+    class _Session(AiohttpSession):
+        def __init__(self, *a, limit=100, **k):
+            super().__init__(*a, **k)
+            self._limit = limit
+
+        async def create_session(self):
+            # Test env may intercept TLS; allow opt-out via TELEGRAM_SSL_VERIFY=false.
+            verify = os.getenv("TELEGRAM_SSL_VERIFY", "true").lower() not in {"0","false","no"}
+            ssl_arg = _sslctx if verify else False
+            if self._session is None or self._session.closed:
+                self._session = aiohttp.ClientSession(
+                    connector=aiohttp.TCPConnector(
+                        ssl=ssl_arg, limit=getattr(self, "_limit", 100)
+                    ),
+                    json_serialize=self.json_dumps,
+                )
+            return self._session
+
     bot = Bot(
-        os.environ["BOT_TOKEN"], default=DefaultBotProperties(parse_mode=ParseMode.HTML)
+        os.environ["BOT_TOKEN"],
+        default=DefaultBotProperties(parse_mode=ParseMode.HTML),
+        session=_Session(),
     )
     db = DB(os.environ["TURSO_URL"], os.environ["TURSO_AUTH_TOKEN"])
     redis = await create_pool(RedisSettings.from_dsn(os.environ["REDIS_URL"]))
